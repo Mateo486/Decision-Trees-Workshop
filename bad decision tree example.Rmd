@@ -1,0 +1,144 @@
+---
+title: "SHPE Decision Tree Workshop"
+author: "Mateo Aristizabal"
+date: "2024-03-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Installing the Packages
+
+```{r include=FALSE}
+install.packages("FSelector")
+install.packages("rpart")
+install.packages("caret", dependencies = TRUE)
+install.packages("dplyr")
+install.packages("rpart.plot")
+install.packages("data.tree")
+install.packages("caTools")
+
+```
+
+## Initializing Java
+```{r}
+Sys.setenv(JAVA_HOME= "C:\\Program Files (x86)\\Java\\jre-1.8")
+Sys.getenv("JAVA_HOME")
+
+install.packages("rJava", type = "source")
+
+```
+
+## Loading the Packages
+
+```{r}
+library(rpart)
+library(caret)
+library(rpart.plot)
+library(dplyr)
+library(data.tree)
+library(caTools)
+library(caTools)
+
+```
+
+##Initializing the Dataset
+```{r}
+data <- read.csv("https://raw.githubusercontent.com/Mateo486/Decision-Trees-Workshop/main/heart[1].csv")
+
+data
+```
+
+# Cleaning up Data Names
+```{r}
+data <- data %>%
+  rename(
+  exercise_angina = exng, # 1 = yes, 0 = no
+  nvessels = caa, # (0-3)
+  chest_pain = cp, # 1 = typical angina, 2 = atypical angina, 3 = non-anginal pain, 4 = asymptomatic
+  r_bloodpressure = trtbps, # in mm Hg
+  cholesterol = chol, 
+  f_bloodsugar = fbs, # fasting blood sugar
+  electcard = restecg, # resting electrocardiographic results , 1= having ST-T wave abnormality, 2= showing probable or definite left ventricular hypertrophy by Estes' criteria
+  max_hr = thalachh,
+  risk = output # 0 less chance of a heart attack, 1 = more chance of a heart attack
+  )
+
+data
+```
+
+# Recoding factor values
+```{r}
+data <- data %>% mutate(chest_pain_new = as.factor(recode(chest_pain,
+"0" = "asymptomatic",
+"1" = "typical angina",
+"2" = "non-anginal pain",
+"3" = "asymptomatic"
+)))
+
+data <- data %>% mutate(electcard_new =
+as.factor(recode(electcard,
+"0" = "normal",
+"1" = "ST-T wave abnormality",
+"2" = "probable/definite left ventricular hypertrophy")))
+
+data <- data %>% mutate(risk_new =
+as.factor(recode(risk,
+"0" = "no",
+"1" = "yes")))
+
+data <- data %>% mutate(f_bloodsugarnew =
+as.factor(recode(f_bloodsugar,
+"0" = "false",
+"1" = "true")))
+
+data <- data %>% mutate(sex_new =
+as.factor(recode(sex,
+"0" = "female",
+"1" = "male")))
+
+data <- data%>% mutate(exercise_angina_new =
+as.factor(recode(exercise_angina,
+"1" = "yes",
+"0" = "no")))
+
+data
+```
+
+# Selecting prediction columns
+```{r}
+data <- select(data, age, sex_new, chest_pain_new, r_bloodpressure, cholesterol, f_bloodsugarnew, electcard_new, max_hr, exercise_angina_new, nvessels, risk_new)
+
+data <- mutate(data, r_bloodpressure = as.numeric(r_bloodpressure), cholesterol = as.numeric(cholesterol), max_hr= as.numeric(max_hr), nvessels = as.numeric(nvessels))
+```
+
+#Determine Training and Testing Data
+```{r}
+set.seed(123)
+sample = sample.split(data$risk_new, SplitRatio = .80)
+train = subset(data, sample == TRUE)
+test = subset(data, sample == FALSE)
+```
+
+# Training the model
+```{r}
+tree <- rpart(risk_new ~., data = train)
+```
+
+#Predicting outcomes
+```{r}
+heart_attack_predicted <- predict(tree, test, type = 'class')
+```
+
+#Confusion Matrix for evaluation
+```{r}
+confusionMatrix(heart_attack_predicted, test$risk_new)
+```
+
+#Displaying the Decision Tree
+```{r}
+prp(tree, varlen = 20, cex = 0.9)
+```
+
