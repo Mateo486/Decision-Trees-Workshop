@@ -11,19 +11,22 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Installing the Packages
 
-```{r include=FALSE}
+```{r installation, include=FALSE}
 install.packages("rpart")
 install.packages("caret", dependencies = TRUE)
 install.packages("dplyr")
 install.packages("rpart.plot")
 install.packages("data.tree")
 install.packages("caTools")
-
+install.packages("car")
+install.packages("pROC")
+install.packages("ggplot2")
+install.packages("mice")
 ```
 
 ## Loading the Packages
 
-```{r}
+```{r packages, include=FALSE}
 library(rpart)
 library(caret)
 library(rpart.plot)
@@ -33,16 +36,18 @@ library(caTools)
 library(caTools)
 library(ggplot2)
 library(pROC)
+library(car)
+library(mice)
 ```
 
 # Initializing the Dataset
-```{r}
+```{r initialize}
 data <- read.csv("https://raw.githubusercontent.com/Mateo486/Decision-Trees-Workshop/main/heart[2].csv")
 
 data
 ```
 # Cleaning up Data Names
-```{r}
+```{r data cleanup}
 data <- data %>%
   rename(
   BloodPressure = RestingBP,
@@ -54,9 +59,11 @@ data <- data %>%
 data
 ```
 
+
 # Recoding factor values
-```{r}
-data <- data %>% mutate(ChestPainTypeNew = as.factor(recode(ChestPainType,
+```{r recoding}
+
+data <- data %>% mutate(ChestPainTypeNew = as.factor(dplyr::recode(ChestPainType,
 "TA" = "Typical Angina",
 "ATA" = "Atypical Angina",
 "NAP" = "Non-Anginal Pain",
@@ -64,26 +71,43 @@ data <- data %>% mutate(ChestPainTypeNew = as.factor(recode(ChestPainType,
 )))
 
 data <- data %>% mutate(ElectroCardioNew =
-as.factor(recode(ElectroCardio,
+as.factor(dplyr::recode(ElectroCardio,
 "Normal" = "Normal",
-"ST" = "ST-T wave abnormality",
-"LVH" = "probable/definite left ventricular hypertrophy"
+"ST" = "ST-T ", # wave abnormality
+"LVH" = "left ventricular hypertrophy"
 )))
 
-data <- data %>% mutate(BloodSugarNew =
-as.factor(recode(BloodSugar,
-"1" = ">120mg/dl",
-"0" = "<120mg/dl")))
+data <- data %>% mutate(Diabetes =
+as.factor(dplyr::recode(BloodSugar,
+"1" = "yes",
+"0" = "no")))
 
 data <- data %>% mutate(HeartDiseaseNew =
-as.factor(recode(HeartDisease,
+as.factor(dplyr::recode(HeartDisease,
 "0" = "N",
 "1" = "Y")))
 
 data
 ```
+## Cleaning up the cholesterol column
+```{r cholesterol fix}
+
+data$Cholesterol[data$Cholesterol == 0] <- NA
+
+# Perform regression imputation using mice
+imputed_data <- mice(data, method = "norm.predict", m = 1)
+
+# Obtain the completed dataset with imputed values
+completed_data <- complete(imputed_data)
+
+# Verify if there are still missing values in the dataset
+sum(is.na(completed_data))
+
+data <- completed_data
+```
+
 # Data Visualization
-```{r}
+```{r visualization}
 proportions <- prop.table(table(data$HeartDiseaseNew))
 
 # Create a data frame for plotting
@@ -108,8 +132,8 @@ print(bar_chart)
 ```
 
 # Selecting prediction columns
-```{r}
-data <- select(data, Age, Sex, ChestPainTypeNew, BloodPressure, Cholesterol, BloodSugarNew, ElectroCardioNew, MaxHeartRate, ExerciseAngina, HeartDiseaseNew)
+```{r prediction}
+data <- select(data, Age, Sex, ChestPainTypeNew, BloodPressure, Cholesterol, ElectroCardioNew, Diabetes, MaxHeartRate, ExerciseAngina, HeartDiseaseNew)
 
 data <- mutate(data, Sex = as.factor(Sex), ExerciseAngina = as.factor(ExerciseAngina))
 
@@ -117,9 +141,9 @@ data
 ```
 
 #Determine Training and Testing Data: Stratified Sampling
-```{r}
+```{r train-test-split}
 
-set.seed(12345)
+set.seed(7654)
 index <- createDataPartition(data$HeartDiseaseNew, p = 0.8, list = FALSE, times = 1)
 
 # Create training and testing datasets using the partition indices
@@ -128,29 +152,29 @@ test <- data[-index, ]
 ```
 
 # Training the model
-```{r}
+```{r train}
 tree <- rpart(HeartDiseaseNew ~., data = train)
 ```
 
 #Predicting outcomes
-```{r}
+```{r predict}
 HeartAttackPredicted <- predict(tree, test, type = 'class')
 ```
 
 #Confusion Matrix for evaluation
-```{r}
+```{r conf matrix}
 conf_matrix <- confusionMatrix(HeartAttackPredicted, test$HeartDiseaseNew)
 
 conf_matrix
 ```
 
 #Displaying the Decision Tree
-```{r}
-prp(tree, varlen = 30, cex = 0.8)
+```{r decision tree}
+prp(tree, varlen = 20, cex = 0.8)
 ```
 
 # Classification Metrics
-```{r}
+```{r classification}
 accuracy <- conf_matrix$overall['Accuracy']
 precision <- conf_matrix$byClass['Precision']
 recall <- conf_matrix$byClass['Recall']
@@ -189,7 +213,7 @@ ggplot(plot_data, aes(x = ChestPainTypeNew, y = Age, color = Color)) +
 ```
 
 # Receiving Operations Characteristic (ROC) Curve
-```{r}
+```{r ROC}
 
 
 predicted_probabilities <- predict(tree, test, type = 'prob')
