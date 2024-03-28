@@ -233,3 +233,9 @@ legend("bottomright", legend = c("ROC Curve", "Random Classifier"),
 
 ```
 
+# Takeaways from the model
+```{r Conclusion}
+
+# The model is pretty good. High Accuracy level, High F1 score and classification metrics, as well as a normal looking ROC curve. Albeit, the model is around 80% accuracy but given such a small dataset combined with such a complex topic as heart disease diagnosis, The decision tree does a great job of evaluating someones risk of having a heart disease. When you change the seed, the accuracy does change by around 5% give or take, which is mainly due to the sensitivity of the data ( shown in the confusion matrix) influencing the predictions of the model. The decision tree itself will change as well, which may lead to some illogical conclusions in the tree splits.
+
+```
