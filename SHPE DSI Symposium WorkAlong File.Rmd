@@ -1,0 +1,245 @@
+---
+title: "DSI Symposium Workshop"
+author: "Mateo Aristizabal"
+date: "2024-03-27"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Installing the Packages
+
+```{r installation, include=FALSE}
+install.packages("rpart")
+install.packages("caret")
+install.packages("dplyr")
+install.packages("rpart.plot")
+install.packages("data.tree")
+install.packages("caTools")
+install.packages("car")
+install.packages("pROC")
+install.packages("ggplot2")
+install.packages("mice")
+```
+
+## Loading the Packages
+
+```{r packages, include=FALSE}
+library(rpart)
+library(caret)
+library(rpart.plot)
+library(dplyr)
+library(data.tree)
+library(caTools)
+library(caTools)
+library(ggplot2)
+library(pROC)
+library(car)
+library(mice)
+```
+
+# Initializing the Dataset
+```{r initialize}
+data <- read.csv("https://raw.githubusercontent.com/Mateo486/Decision-Trees-Workshop/main/heart[2].csv")
+
+data
+```
+# Cleaning up Data Names
+```{r data cleanup}
+data <- data %>%
+  rename(
+  BloodPressure = RestingBP,
+  BloodSugar = FastingBS,
+  ElectroCardio = RestingECG,
+  MaxHeartRate = MaxHR
+  )
+
+data
+```
+
+
+# Recoding factor values
+```{r recoding}
+
+data <- data %>% mutate(ChestPainTypeNew = as.factor(dplyr::recode(ChestPainType,
+"TA" = "Typical Angina",
+"ATA" = "Atypical Angina",
+"NAP" = "Non-Anginal Pain",
+"ASY" = "Asymptomatic"
+)))
+
+data <- data %>% mutate(ElectroCardioNew =
+as.factor(dplyr::recode(ElectroCardio,
+"Normal" = "Normal",
+"ST" = "ST-T ", # wave abnormality
+"LVH" = "left ventricular hypertrophy"
+)))
+
+data <- data %>% mutate(Diabetes =
+as.factor(dplyr::recode(BloodSugar,
+"1" = "yes",
+"0" = "no")))
+
+data <- data %>% mutate(HeartDiseaseNew =
+as.factor(dplyr::recode(HeartDisease,
+"0" = "N",
+"1" = "Y")))
+
+data
+```
+## Cleaning up the cholesterol column
+```{r cholesterol fix}
+
+data$Cholesterol[data$Cholesterol == 0] <- NA
+
+# Perform regression imputation using mice
+imputed_data <- mice(data, method = "norm.predict", m = 1)
+
+# Obtain the completed dataset with imputed values
+completed_data <- complete(imputed_data)
+
+# Verify if there are still missing values in the dataset
+sum(is.na(completed_data))
+
+data <- completed_data
+```
+
+# Data Visualization
+```{r visualization}
+proportions <- prop.table(table(data$HeartDiseaseNew))
+
+# Create a data frame for plotting
+bar_data <- data.frame(
+  category = names(proportions),
+  proportion = proportions
+)
+
+# Plot the bar chart
+bar_chart <- ggplot(bar_data, aes(x = category, y = proportions, fill = category)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = paste0(round(proportions * 100, 1), "%")),
+            position = position_stack(vjust = 0.5)) +
+  scale_y_continuous(labels = scales::percent_format()) +
+  labs(title = "Proportion of Heart Disease",
+       x = "Category", y = "Proportion") +
+  theme_minimal()
+
+# Print the bar chart
+print(bar_chart)
+
+```
+
+# Selecting prediction columns
+```{r prediction}
+data <- select(data, Age, Sex, ChestPainTypeNew, BloodPressure, Cholesterol, ElectroCardioNew, Diabetes, MaxHeartRate, ExerciseAngina, HeartDiseaseNew)
+
+data <- mutate(data, Sex = as.factor(Sex), ExerciseAngina = as.factor(ExerciseAngina))
+
+data
+```
+
+#Determine Training and Testing Data: Stratified Sampling
+```{r train-test-split}
+
+set.seed(7654)
+index <- createDataPartition(data$HeartDiseaseNew, p = 0.8, list = FALSE, times = 1)
+
+# Create training and testing datasets using the partition indices
+train <- data[index, ]
+test <- data[-index, ]
+```
+
+# Training the model
+```{r train}
+# insert rpart() formula here
+```
+
+#Predicting outcomes
+```{r predict}
+# insert predict() formula here
+
+```
+
+#Confusion Matrix for evaluation
+```{r conf matrix}
+# insert confusionMatrix() code
+
+conf_matrix
+```
+
+#Displaying the Decision Tree
+```{r decision tree}
+
+# insert prp() formula here
+
+```
+
+# Classification Metrics
+```{r classification}
+accuracy <- conf_matrix$overall['Accuracy']
+precision <- conf_matrix$byClass['Precision']
+recall <- conf_matrix$byClass['Recall']
+f1 <- conf_matrix$byClass['F1']
+
+accuracy
+precision
+recall
+f1
+
+metrics_df <- data.frame(
+  Metric = c('Accuracy', 'Precision', 'Recall', 'F1'),
+  Value = c(accuracy, precision, recall, f1)
+)
+
+ggplot(metrics_df, aes(x = Metric, y = Value)) +
+  geom_bar(stat = 'identity', fill = 'steelblue') +
+  labs(title = 'Classification Metrics',
+       y = 'Value') +
+  theme_minimal()
+
+plot_data <- data.frame(Age = test$Age,
+                        ChestPainTypeNew = test$ChestPainTypeNew,
+                        HeartDiseaseNew = test$HeartDiseaseNew)
+
+plot_data$Color <- ifelse(plot_data$HeartDiseaseNew == "Y", "green", "red")
+
+ggplot(plot_data, aes(x = ChestPainTypeNew, y = Age, color = Color)) +
+  geom_point() +
+  labs(title = "Heart Disease by Age and Chest Pain Type",
+       x = "Chest Pain Type",
+       y = "Age") +
+  scale_color_identity() +
+  theme_minimal()
+
+```
+
+# Receiving Operations Characteristic (ROC) Curve
+```{r ROC}
+
+
+predicted_probabilities <- predict(tree, test, type = 'prob')
+
+roc_curve <- roc(test$HeartDiseaseNew, predicted_probabilities[, "Y"])
+
+
+plot(roc_curve, main = "ROC Curve for Stroke Prediction Model",
+     xlab = "False Positive Rate", ylab = "True Positive Rate",
+     col = "blue", lwd = 3, xaxt = "n")
+
+abline(a = 0, b = 1, lty = 2, col = "red")
+
+legend("bottomright", legend = c("ROC Curve", "Random Classifier"),
+       col = c("blue", "red"), lty = c(1, 2), lwd = 2)
+
+
+```
+
+
+# Takeaways from the model
+```{r Conclusion}
+
+# The model is pretty good. High Accuracy level, High F1 score and classification metrics, as well as a normal looking ROC curve. Albeit, the model is around 80% accuracy but given such a small dataset combined with such a complex topic as heart disease diagnosis, The decision tree does a great job of evaluating someones risk of having a heart disease. When you change the seed, the accuracy does change by around 5% give or take, which is mainly due to the sensitivity of the data ( shown in the confusion matrix) influencing the predictions of the model. The decision tree itself will change as well, which may lead to some illogical conclusions in the tree splits.
+
+```
